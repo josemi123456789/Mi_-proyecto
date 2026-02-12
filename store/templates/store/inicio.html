@@ -1,0 +1,64 @@
+{% extends 'store/base.html' %}
+
+{% block content %}
+
+<div class="position-relative overflow-hidden p-3 p-md-5 m-md-3 text-center bg-light" 
+     style="background-image: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1920&q=80'); background-size: cover; background-position: center; border-radius: 10px; color: white;">
+    
+    <div class="col-md-8 p-lg-5 mx-auto my-5">
+        <h1 class="display-4 fw-normal">Tu Espacio, Tu Regla</h1>
+        <p class="lead fw-normal mb-4">Descubre escritorios diseñados para la productividad y el confort. Envíos a todo Ecuador.</p>
+        <a class="btn btn-primary btn-lg px-4 me-md-2 fw-bold" href="{% url 'lista_escritorios' %}">Ver Catálogo</a>
+        <a class="btn btn-outline-light btn-lg px-4" href="#">Ofertas</a>
+    </div>
+</div>
+
+<div class="container px-4 py-5" id="icon-grid">
+    <h2 class="pb-2 border-bottom text-center">¿Por qué elegirnos?</h2>
+
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-4 py-5">
+        <div class="col d-flex align-items-start">
+            <div class="icon-square bg-light text-dark flex-shrink-0 me-3 p-3 rounded-3 shadow-sm">
+                💻
+            </div>
+            <div>
+                <h4 class="fw-bold mb-0">Ergonomía Total</h4>
+                <p>Diseños pensados para cuidar tu postura durante largas horas de trabajo o juego.</p>
+            </div>
+        </div>
+        
+        <div class="col d-flex align-items-start">
+            <div class="icon-square bg-light text-dark flex-shrink-0 me-3 p-3 rounded-3 shadow-sm">
+                🚚
+            </div>
+            <div>
+                <h4 class="fw-bold mb-0">Envío Rápido</h4>
+                <p>Recibe tu escritorio en la puerta de tu casa en cualquier parte del país.</p>
+            </div>
+        </div>
+
+        <div class="col d-flex align-items-start">
+            <div class="icon-square bg-light text-dark flex-shrink-0 me-3 p-3 rounded-3 shadow-sm">
+                🛡️
+            </div>
+            <div>
+                <h4 class="fw-bold mb-0">Garantía</h4>
+                <p>Materiales de alta calidad asegurados con nuestra garantía de satisfacción.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="bg-dark text-secondary px-4 py-5 text-center">
+    <div class="py-5">
+        <h1 class="display-5 fw-bold text-white">¿Listo para renovar tu setup?</h1>
+        <div class="col-lg-6 mx-auto">
+            <p class="fs-5 mb-4">No esperes más para tener el escritorio que te mereces. Stock limitado.</p>
+            <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+                <a href="{% url 'lista_escritorios' %}" class="btn btn-outline-info btn-lg px-4 me-sm-3 fw-bold">Comprar Ahora</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

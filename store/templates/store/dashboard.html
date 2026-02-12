@@ -1,0 +1,92 @@
+{% extends 'store/base.html' %}
+
+{% block content %}
+<h1 class="mb-4">Panel de Administración</h1>
+
+<div class="row">
+    <div class="col-md-3 mb-4">
+        <div class="list-group shadow-sm">
+            <a href="{% url 'dashboard' %}" class="list-group-item list-group-item-action active">
+                <i class="bi bi-speedometer2 me-2"></i>Gestión de Productos
+            </a>
+
+            <a href="{% url 'lista_mensajes' %}" class="list-group-item list-group-item-action">
+                <i class="bi bi-envelope-fill me-2"></i>Bandeja de Mensajes
+            </a>
+
+            <a href="{% url 'lista_pedidos' %}" class="list-group-item list-group-item-action">
+                <i class="bi bi-cart-check me-2"></i>Gestión de Pedidos
+            </a>
+
+            <a href="{% url 'lista_escritorios' %}" class="list-group-item list-group-item-action list-group-item-info">
+                <i class="bi bi-eye me-2"></i>Ver Sitio Web
+            </a>
+        </div>
+    </div>
+
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Catálogo de Escritorios</h2>
+            <a href="{% url 'crear_escritorio' %}" class="btn btn-success">
+                <i class="bi bi-plus-circle me-2"></i>Nuevo Escritorio
+            </a>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Imagen</th>
+                                <th>Nombre</th>
+                                <th>Precio</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for escritorio in escritorios %}
+                            <tr>
+                                <td>
+                                    {% if escritorio.imagen %}
+                                        <img src="{{ escritorio.imagen.url }}"
+                                             alt="{{ escritorio.nombre }}"
+                                             width="50" height="50"
+                                             class="rounded"
+                                             style="object-fit: cover;">
+                                    {% else %}
+                                        <span class="text-muted">Sin imagen</span>
+                                    {% endif %}
+                                </td>
+                                <td class="fw-bold">{{ escritorio.nombre }}</td>
+                                <td>${{ escritorio.precio }}</td>
+                                <td class="text-center">
+                                    <a href="{% url 'editar_escritorio' escritorio.id %}"
+                                       class="btn btn-sm btn-outline-primary"
+                                       title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+
+                                    <a href="{% url 'eliminar_escritorio' escritorio.id %}"
+                                       class="btn btn-sm btn-outline-danger"
+                                       title="Eliminar"
+                                       onclick="return confirm('¿Eliminar {{ escritorio.nombre }}?');">
+                                        <i class="bi bi-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    No hay productos registrados aún.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

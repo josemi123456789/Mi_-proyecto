@@ -1,0 +1,35 @@
+{% extends 'store/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card text-center shadow-lg p-5 border-success">
+            <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+            <h1 class="card-title mt-3 mb-4">¡Pedido Confirmado!</h1>
+            
+            <p class="lead">
+                Gracias por tu compra. Tu pedido ha sido procesado exitosamente.
+            </p>
+            
+            <div class="alert alert-success mt-4 p-3" role="alert">
+                <h4 class="alert-heading">Nro. de Pedido: **{{ pedido.id }}**</h4>
+            </div>
+
+            <p class="text-start mt-4">
+                **Datos de Envío:**
+                <br>Nombre: {{ pedido.nombre_completo }}
+                <br>Email: {{ pedido.email }}
+                <br>Dirección: {{ pedido.direccion }}, {{ pedido.ciudad }}
+            </p>
+
+            <h3 class="mt-4 mb-3">Total Pagado: <span class="text-success fw-bold">${{ pedido.total_final }}</span></h3>
+
+            <hr>
+            
+            <a href="{% url 'lista_escritorios' %}" class="btn btn-dark btn-lg mt-3">
+                <i class="bi bi-shop me-2"></i> Seguir Comprando
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

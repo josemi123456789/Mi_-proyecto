@@ -1,0 +1,48 @@
+{% extends 'store/base.html' %}
+
+{% block content %}
+<div class="card shadow-sm mb-5">
+    <div class="row g-0">
+        <div class="col-md-6">
+            {% if escritorio.imagen %}
+                <img src="{{ escritorio.imagen.url }}" class="img-fluid rounded-start w-100" style="object-fit: cover; height: 500px;" alt="{{ escritorio.nombre }}">
+            {% else %}
+                <img src="https://via.placeholder.com/600x500?text=Sin+Imagen" class="img-fluid rounded-start w-100" alt="Sin imagen">
+            {% endif %}
+        </div>
+
+        <div class="col-md-6">
+            <div class="card-body p-5">
+                <h1 class="card-title fw-bold mb-3">{{ escritorio.nombre }}</h1>
+                <h3 class="text-success mb-4">${{ escritorio.precio }}</h3>
+                
+                <p class="card-text lead text-muted mb-4">{{ escritorio.descripcion }}</p>
+                
+                <hr class="my-4">
+                
+                <form method="POST" action="{% url 'agregar_al_carrito' %}">
+                    {% csrf_token %}
+                    
+                    <input type="hidden" name="escritorio_id" value="{{ escritorio.id }}">
+
+                    <div class="row mb-4 align-items-center">
+                        <div class="col-auto">
+                            <label for="cantidad" class="col-form-label fw-bold">Cantidad:</label>
+                        </div>
+                        <div class="col-4">
+                            <input type="number" id="cantidad" name="cantidad" value="1" min="1" class="form-control text-center">
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-dark btn-lg" type="submit">
+                            <i class="bi bi-cart-plus me-2"></i>Añadir al Carrito
+                        </button>
+                        <a href="{% url 'lista_escritorios' %}" class="btn btn-outline-secondary">Volver al Catálogo</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

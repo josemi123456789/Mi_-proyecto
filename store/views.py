@@ -1,0 +1,310 @@
+import stripe
+from django.conf import settings
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import login, authenticate
+from django.contrib.auth.decorators import user_passes_test
+from django.db.models import Q
+from django.views import View
+from django.views.decorators.http import require_POST
+from django.urls import reverse
+
+# Importación de tus modelos y formularios
+from .forms import EscritorioForm, RegistroForm, ContactoForm, CheckoutForm
+from .models import Escritorio, MensajeContacto, Carrito, ItemCarrito, Pedido, ItemPedido
+
+# --- CONFIGURACIÓN DE STRIPE ---
+stripe.api_key = settings.STRIPE_SECRET_KEY
+
+# --- LÓGICA DEL CARRITO ---
+
+def obtener_o_crear_carrito(request):
+    if request.user.is_authenticated:
+        carrito, _ = Carrito.objects.get_or_create(user=request.user)
+    else:
+        if not request.session.session_key:
+            request.session.create()
+        carrito, _ = Carrito.objects.get_or_create(session_key=request.session.session_key)
+    return carrito
+
+# --- VISTAS PÚBLICAS ---
+
+def inicio(request):
+    return render(request, 'store/inicio.html')
+
+def lista_escritorios(request):
+    query = request.GET.get('q')
+    if query:
+        escritorios = Escritorio.objects.filter(
+            Q(nombre__icontains=query) | Q(descripcion__icontains=query)
+        )
+    else:
+        escritorios = Escritorio.objects.all()
+    return render(request, 'store/lista_escritorios.html', {'escritorios': escritorios})
+
+def detalle_escritorio(request, id):
+    escritorio = get_object_or_404(Escritorio, id=id)
+    return render(request, 'store/detalle_escritorio.html', {'escritorio': escritorio})
+
+def contacto(request):
+    if request.method == 'POST':
+        form = ContactoForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return render(request, 'store/contacto_exito.html')
+    else:
+        form = ContactoForm()
+    return render(request, 'store/contacto.html', {'form': form})
+
+
+# --- VISTAS DE USUARIO / REGISTRO ---
+
+def registro(request):
+    if request.method == 'POST':
+        form = RegistroForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            return redirect('inicio')
+    else:
+        form = RegistroForm()
+    return render(request, 'registration/registro.html', {'form': form})
+
+def login_view(request):
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+
+        user = authenticate(request, username=username, password=password)
+        if user:
+            login(request, user)
+            if user.is_staff:
+                return redirect('dashboard')
+            return redirect('inicio')
+    
+    return render(request, 'registration/login.html')
+
+
+# --- FUNCIONALIDAD DE COMPRA (CARRITO Y CHECKOUT) ---
+
+@require_POST
+def agregar_al_carrito(request, escritorio_id):
+    escritorio = get_object_or_404(Escritorio, id=escritorio_id)
+    cantidad = int(request.POST.get('cantidad', 1))
+    carrito = obtener_o_crear_carrito(request)
+
+    item, creado = ItemCarrito.objects.get_or_create(
+        carrito=carrito,
+        escritorio=escritorio,
+        defaults={'cantidad': cantidad}
+    )
+
+    if not creado:
+        item.cantidad += cantidad
+        item.save()
+
+    return redirect('detalle_escritorio', id=escritorio.id)
+
+
+def ver_carrito(request):
+    carrito = obtener_o_crear_carrito(request)
+    items = ItemCarrito.objects.filter(carrito=carrito)
+
+    # Lógica para actualizar o eliminar items desde el carrito
+    if request.method == 'POST':
+        item_id = request.POST.get('item_id')
+        if item_id:
+            item = get_object_or_404(ItemCarrito, id=item_id, carrito=carrito)
+            if request.POST.get('action') == 'update':
+                cantidad = int(request.POST.get('cantidad', 1))
+                if cantidad > 0:
+                    item.cantidad = cantidad
+                    item.save()
+            elif request.POST.get('action') == 'remove':
+                item.delete()
+        return redirect('ver_carrito')
+
+    total_carrito = sum(item.subtotal() for item in items)
+
+    return render(request, 'store/carrito.html', {
+        'carrito': carrito,
+        'items': items,
+        'total_carrito': total_carrito,
+        'stripe_public_key': settings.STRIPE_PUBLIC_KEY # Pasamos la clave al template
+    })
+
+# --- VISTA DE PAGO CON STRIPE (NUEVA) ---
+
+class CreateCheckoutSessionView(View):
+    def post(self, request, *args, **kwargs):
+        carrito = obtener_o_crear_carrito(request)
+        items = ItemCarrito.objects.filter(carrito=carrito)
+
+        if not items.exists():
+            return redirect('ver_carrito')
+
+        # Definir el dominio correcto (Local o Producción)
+        if settings.DEBUG:
+            dominio = 'http://127.0.0.1:8000'
+        else:
+            dominio = 'https://escritorio.pythonanywhere.com'
+
+        # Crear lista de items para Stripe
+        line_items = []
+        for item in items:
+            line_items.append({
+                'price_data': {
+                    'currency': 'usd',
+                    'unit_amount': int(item.escritorio.precio * 100), # Stripe usa centavos
+                    'product_data': {
+                        'name': item.escritorio.nombre,
+                        'description': item.escritorio.descripcion[:100], # Opcional
+                    },
+                },
+                'quantity': item.cantidad,
+            })
+
+        try:
+            checkout_session = stripe.checkout.Session.create(
+                payment_method_types=['card'],
+                line_items=line_items,
+                mode='payment',
+                success_url=dominio + reverse('pago_exitoso'),
+                cancel_url=dominio + reverse('pago_cancelado'),
+            )
+            return redirect(checkout_session.url, code=303)
+        except Exception as e:
+            return render(request, 'store/error.html', {'error': str(e)})
+
+def pago_exitoso(request):
+    # Aquí podrías vaciar el carrito y crear el Pedido automáticamente
+    carrito = obtener_o_crear_carrito(request)
+    items = ItemCarrito.objects.filter(carrito=carrito)
+    
+    if items.exists():
+        # Crear pedido básico post-pago (Simplificado)
+        pedido = Pedido.objects.create(
+            user=request.user if request.user.is_authenticated else None,
+            total_final=sum(item.subtotal() for item in items),
+            completo=True,
+            metodo_pago='Stripe'
+        )
+        # Mover items al pedido
+        for item in items:
+            ItemPedido.objects.create(
+                pedido=pedido,
+                escritorio=item.escritorio,
+                cantidad=item.cantidad,
+                precio_al_momento=item.escritorio.precio
+            )
+        # Vaciar carrito
+        items.delete()
+        
+    return render(request, 'store/pago_exitoso.html')
+
+def pago_cancelado(request):
+    return render(request, 'store/pago_cancelado.html')
+
+
+# --- CHECKOUT MANUAL (Opcional, si quieres mantener ambos métodos) ---
+
+def checkout(request):
+    carrito = obtener_o_crear_carrito(request)
+    items = ItemCarrito.objects.filter(carrito=carrito)
+
+    if not items.exists():
+        return redirect('ver_carrito')
+
+    total_carrito = sum(item.subtotal() for item in items)
+
+    if request.method == 'POST':
+        form = CheckoutForm(request.POST)
+        if form.is_valid():
+            pedido = form.save(commit=False)
+            pedido.user = request.user if request.user.is_authenticated else None
+            pedido.total_final = total_carrito
+            pedido.completo = True
+            pedido.metodo_pago = 'Manual'
+            pedido.save()
+
+            for item in items:
+                ItemPedido.objects.create(
+                    pedido=pedido,
+                    escritorio=item.escritorio,
+                    cantidad=item.cantidad,
+                    precio_al_momento=item.escritorio.precio
+                )
+
+            items.delete()
+            return redirect('confirmacion_pedido', pedido_id=pedido.id)
+    else:
+        initial = {}
+        if request.user.is_authenticated:
+            initial['email'] = request.user.email
+            initial['nombre_completo'] = f"{request.user.first_name} {request.user.last_name}".strip()
+        form = CheckoutForm(initial=initial)
+
+    return render(request, 'store/checkout.html', {
+        'items': items,
+        'total_carrito': total_carrito,
+        'form': form
+    })
+
+def confirmacion_pedido(request, pedido_id):
+    pedido = get_object_or_404(Pedido, id=pedido_id)
+    return render(request, 'store/confirmacion_pedido.html', {'pedido': pedido})
+
+
+# --- PANEL DE ADMINISTRACIÓN (DASHBOARD) ---
+
+def es_admin(user):
+    return user.is_authenticated and user.is_staff
+
+@user_passes_test(es_admin)
+def dashboard(request):
+    escritorios = Escritorio.objects.all()
+    return render(request, 'store/dashboard.html', {'escritorios': escritorios})
+
+@user_passes_test(es_admin)
+def lista_mensajes(request):
+    mensajes = MensajeContacto.objects.all().order_by('-fecha_envio')
+    return render(request, 'store/lista_mensajes.html', {'mensajes': mensajes})
+
+@user_passes_test(es_admin)
+def crear_escritorio(request):
+    if request.method == 'POST':
+        form = EscritorioForm(request.POST, request.FILES)
+        if form.is_valid():
+            form.save()
+            return redirect('dashboard')
+    else:
+        form = EscritorioForm()
+    return render(request, 'store/form_escritorio.html', {'form': form, 'titulo': 'Nuevo Escritorio'})
+
+@user_passes_test(es_admin)
+def editar_escritorio(request, id):
+    escritorio = get_object_or_404(Escritorio, id=id)
+    if request.method == 'POST':
+        form = EscritorioForm(request.POST, request.FILES, instance=escritorio)
+        if form.is_valid():
+            form.save()
+            return redirect('dashboard')
+    else:
+        form = EscritorioForm(instance=escritorio)
+    return render(request, 'store/form_escritorio.html', {'form': form, 'titulo': 'Editar Escritorio'})
+
+@user_passes_test(es_admin)
+def eliminar_escritorio(request, id):
+    escritorio = get_object_or_404(Escritorio, id=id)
+    escritorio.delete()
+    return redirect('dashboard')
+
+@user_passes_test(es_admin)
+def lista_pedidos(request):
+    pedidos = Pedido.objects.all().order_by('-fecha_pedido')
+    return render(request, 'store/lista_pedidos.html', {'pedidos': pedidos})
+
+@user_passes_test(es_admin)
+def detalle_pedido(request, pedido_id):
+    pedido = get_object_or_404(Pedido, id=pedido_id)
+    items = ItemPedido.objects.filter(pedido=pedido)
+    return render(request, 'store/detalle_pedido.html', {'pedido': pedido, 'items': items})
